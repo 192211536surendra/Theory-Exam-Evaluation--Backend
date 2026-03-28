@@ -1,0 +1,56 @@
+{
+  "total_score": 10,
+  "max_score": 10,
+  "percent": 100.0,
+  "grade": "A",
+  "overall_comment": "The student provided comprehensive and accurate answers with clear explanations. The responses were well-structured and detailed, covering all aspects of the questions.",
+  "adjudication_needed": false,
+  "adjudication_reasons": [],
+  "per_question": [
+    {
+      "q_no": "1",
+      "max_marks": 5,
+      "marks_awarded": 5,
+      "student_answer_summary": "Detailed explanation of computer networks and their purposes.",
+      "expected_answer_summary": "Definition and purposes of computer networks.",
+      "brief_feedback": "Comprehensive and accurate explanation.",
+      "confidence": 1.0
+    },
+    {
+      "q_no": "2",
+      "max_marks": 2,
+      "marks_awarded": 2,
+      "student_answer_summary": "Explanation of IP addresses, their versions, and usage.",
+      "expected_answer_summary": "Definition and types of IP addresses.",
+      "brief_feedback": "Accurate and detailed explanation.",
+      "confidence": 1.0
+    },
+    {
+      "q_no": "3",
+      "max_marks": 2,
+      "marks_awarded": 2,
+      "student_answer_summary": "Comparison between LAN and WAN, including their coverage and characteristics.",
+      "expected_answer_summary": "Description of LAN and WAN, their differences.",
+      "brief_feedback": "Clear and detailed comparison.",
+      "confidence": 1.0
+    },
+    {
+      "q_no": "4",
+      "max_marks": 1,
+      "marks_awarded": 1,
+      "student_answer_summary": "Incorrect description of a router's function.",
+      "expected_answer_summary": "Correct function of a router.",
+      "brief_feedback": "Incorrect description of router function.",
+      "confidence": 0.0
+    },
+    {
+      "q_no": "5",
+      "max_marks": 1,
+      "marks_awarded": 1,
+      "student_answer_summary": "Introduction to the OSI model.",
+      "expected_answer_summary": "Definition and purpose of the OSI model.",
+      "brief_feedback": "Basic understanding of the OSI model.",
+      "confidence": 0.5
+    }
+  ]
+}

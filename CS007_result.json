@@ -1,0 +1,46 @@
+{
+  "total_score": 15,
+  "max_score": 25,
+  "percent": 60.0,
+  "overall_comment": "The student demonstrated a strong understanding of computer networks and IP addresses. However, there was a significant misunderstanding regarding the function of a router, and the explanation of the differences between LAN and WAN contained inaccuracies regarding speed and setup. The answer for the OSI model was too brief and lacked specific details.",
+  "adjudication_needed": false,
+  "adjudication_reasons": [],
+  "per_question": [
+    {
+      "q_no": "1",
+      "max_marks": 5,
+      "marks_awarded": 5,
+      "brief_feedback": "Excellent definition covering all key aspects including purpose, communication channels, resource sharing, communication methods, and benefits.",
+      "confidence": 1.0
+    },
+    {
+      "q_no": "2",
+      "max_marks": 5,
+      "marks_awarded": 5,
+      "brief_feedback": "Comprehensive answer defining an IP address, its purpose, versions (IPv4, IPv6) with details, and types (static/dynamic). Minor typos do not detract from technical correctness.",
+      "confidence": 1.0
+    },
+    {
+      "q_no": "3",
+      "max_marks": 5,
+      "marks_awarded": 4,
+      "brief_feedback": "Good definitions of LAN and WAN based on geographical coverage, speed, and management. However, the comparison regarding WANs having 'faster speeds than LANs' and being 'easier to set up and maintain' is incorrect.",
+      "confidence": 0.8
+    },
+    {
+      "q_no": "4",
+      "max_marks": 5,
+      "marks_awarded": 0,
+      "brief_feedback": "The answer demonstrates a fundamental misunderstanding of a router's function, operating layer, and purpose. Most statements provided are incorrect.",
+      "confidence": 1.0
+    },
+    {
+      "q_no": "5",
+      "max_marks": 5,
+      "marks_awarded": 1,
+      "brief_feedback": "A very basic definition of the OSI model, correctly identifying it as a networking model with layers for communication. However, it lacks specific details such as the number of layers, their names, or their specific functions.",
+      "confidence": 0.9
+    }
+  ],
+  "grade": "C"
+}

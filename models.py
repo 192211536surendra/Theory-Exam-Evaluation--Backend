@@ -1,7 +1,5 @@
 from extensions import db
 from datetime import datetime
-
-
 # ======================================================
 # DEPARTMENT TABLE
 # ======================================================
@@ -221,6 +219,10 @@ class OMRExam(db.Model):
     id = db.Column(db.Integer, primary_key=True)
 
     exam_name = db.Column(db.String(200), nullable=False)
+    subject_code = db.Column(db.String(20), default="N/A")
+    exam_date = db.Column(db.Date)
+    duration = db.Column(db.Integer)
+    
     total_questions = db.Column(db.Integer)
     options_per_question = db.Column(db.Integer)
     marks_per_question = db.Column(db.Float)
@@ -269,22 +271,29 @@ class OMRSheet(db.Model):
 # OMR RESULTS
 # ======================================================
 class OMRResult(db.Model):
+
     __tablename__ = "omr_results"
 
     id = db.Column(db.Integer, primary_key=True)
 
-    exam_id = db.Column(db.Integer, db.ForeignKey("omr_exams.id"), index=True)
+    exam_id = db.Column(
+        db.Integer,
+        db.ForeignKey("omr_exams.id"),
+        nullable=False,
+        index=True
+    )
+
     student_roll = db.Column(db.String(50), index=True)
 
+    full_name = db.Column(db.String(150))
+
     score = db.Column(db.Float, default=0)
+
     percentage = db.Column(db.Float, default=0)
+
     grade = db.Column(db.String(5))
 
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-
-    __table_args__ = (
-        db.UniqueConstraint('exam_id', 'student_roll', name='unique_exam_student_omr'),
-    )
 
 
 # ======================================================
@@ -297,7 +306,10 @@ class TheoryExam(db.Model):
 
     exam_title = db.Column(db.String(200), nullable=False)
     subject_code = db.Column(db.String(20), nullable=False, index=True)
-    total_marks = db.Column(db.Float, nullable=False)
+    exam_date = db.Column(db.Date)
+    duration = db.Column(db.Integer)
+    total_marks = db.Column(db.Float, nullable=True)
+    marks_per_question = db.Column(db.Float, default=0)
 
     faculty_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
 
@@ -307,11 +319,11 @@ class TheoryExam(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     answer_sheets = db.relationship(
-    "TheoryAnswerSheet",
-    backref="exam",
-    cascade="all, delete-orphan",
-    lazy=True
-)
+        "TheoryAnswerSheet",
+         backref="exam",
+         cascade="all, delete-orphan",
+         lazy=True
+    )
 
     results = db.relationship(
         "TheoryResult",
@@ -359,6 +371,9 @@ class TheoryResult(db.Model):
         nullable=False
     )
 
+    # ✅ ADD THIS COLUMN
+    full_name = db.Column(db.String(150))
+
     total_score = db.Column(db.Float, default=0)
     max_score = db.Column(db.Float, default=0)
     percent = db.Column(db.Float, default=0)
@@ -380,3 +395,17 @@ class TheoryResult(db.Model):
             name="unique_exam_student_theory"
         ),
     )
+class StudentPerformance(db.Model):
+    __tablename__ = "student_performance"
+
+    id = db.Column(db.Integer, primary_key=True)
+    student_roll = db.Column(db.String(50), index=True)
+
+    average_score = db.Column(db.Float)
+    highest_score = db.Column(db.Float)
+    lowest_score = db.Column(db.Float)
+
+    performance_label = db.Column(db.String(50))
+    improvement = db.Column(db.Float)
+
+    recorded_at = db.Column(db.DateTime, default=datetime.utcnow)
