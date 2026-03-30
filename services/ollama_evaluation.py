@@ -206,10 +206,6 @@ def evaluate_answers(
     answer_key_path: str,
     student_answer_path: str,
     question_paper_path: str = None,
-    # ── Pre-extracted text ────────────────────────────────────
-    # Pass these from main() to skip re-reading / re-OCR-ing files
-    # that were already processed. Leave as None when calling
-    # directly from routes.py so the function reads them itself.
     key_text: str = None,
     student_text: str = None,
     qp_text: str = None,
@@ -253,6 +249,15 @@ def evaluate_answers(
     )
     raw    = ollama_text(prompt)
     result = clean_json(raw)
+
+    # ── FIX: Recalculate total_score by summing per-question marks.
+    #         The model sometimes returns a wrong total_score that does
+    #         not match the individual marks_awarded values.
+    if result.get("per_question"):
+        result["total_score"] = sum(
+            q.get("marks_awarded", 0) for q in result["per_question"]
+        )
+
     print("✓")
 
     # 5. Fill defaults
@@ -415,7 +420,6 @@ def main():
         answer_key_path=ANSWER_KEY,
         student_answer_path=STUDENT_ANSWER,
         question_paper_path=QUESTION_PAPER if QUESTION_PAPER and os.path.exists(QUESTION_PAPER) else None,
-        # ↓ Hand the already-extracted text in so nothing is re-read
         key_text=key_text,
         student_text=student_text,
         qp_text=qp_text,

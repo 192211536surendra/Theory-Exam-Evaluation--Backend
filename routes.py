@@ -14,8 +14,7 @@ from werkzeug.utils import secure_filename
 from extensions import db, bcrypt
 
 # SERVICES
-from services.ollama_evaluation import evaluate_answers #from services.gemini_evaluation import evaluate_answers
-#from services.ollama_visionmodel import evaluate_answers
+from services.ollama_evaluation import evaluate_answers 
 from services.omr_evaluator import evaluate_omr_sheet   # wrapper we added
 
 # JWT AUTH
@@ -1434,6 +1433,15 @@ def evaluate_theory_combined():
         if not os.path.exists(ma_path):
             return jsonify({"error": "Model answer file failed to save"}), 500
 
+        # ── Pre-extract Answer Key and Question Paper text (Optimization) ──
+        print("  Pre-extracting master files ...")
+        from services.ollama_evaluation import read_pdf
+        
+        key_text = read_pdf(ma_path, label="key", max_pages=6)
+        qp_text = ""
+        if qp_path:
+            qp_text = read_pdf(qp_path, label="qp", max_pages=4)
+
         # ── Process each student sheet ────────────────────────
         results_summary  = []
         evaluated_count  = 0
@@ -1503,11 +1511,9 @@ def evaluate_theory_combined():
 
                 # ── Call evaluate_answers() ───────────────────
                 # This handles:
-                #   1. Reading answer key
-                #   2. Reading question paper (optional)
-                #   3. OCR student sheet via Ollama
-                #   4. If OCR fails → Gemini fallback
-                #   5. Grade and return result JSON
+                #   1. Reading student sheet OCR via Ollama
+                #   2. Grade and return result JSON
+                # Using pre-extracted key_text and qp_text to save time.
 
                 print(f"  Answer key  : {ma_path}")
                 print(f"  Student PDF : {sheet_path}")
@@ -1516,7 +1522,9 @@ def evaluate_theory_combined():
                 result_data, total_tokens = evaluate_answers(
                     answer_key_path     = ma_path,
                     student_answer_path = sheet_path,
-                    question_paper_path = qp_path  # None if not uploaded
+                    question_paper_path = qp_path,  # None if not uploaded
+                    key_text            = key_text,
+                    qp_text             = qp_text
                 )
 
                 print(f"  Tokens used : {total_tokens}")
@@ -1917,15 +1925,24 @@ def upload_omr_sheets():
         return jsonify({"error": "No files uploaded"}), 400
 
 
+    # ── Create exam-specific folder (Isolation Fix) ──────────
+    exam_folder = os.path.join(OMR_UPLOAD_FOLDER, f"exam_{exam_id}")
+    os.makedirs(exam_folder, exist_ok=True)
+
     uploaded = []
 
     for file in files:
 
         filename = secure_filename(file.filename)
-
-        save_path = os.path.join(OMR_UPLOAD_FOLDER, filename)
+        save_path = os.path.join(exam_folder, filename)
 
         file.save(save_path)
+
+        # Remove old sheet if exists for this roll number and exam
+        roll_number = os.path.splitext(filename)[0].upper()
+        existing = OMRSheet.query.filter_by(exam_id=exam_id, sheet_path=save_path).first()
+        if existing:
+            db.session.delete(existing)
 
         sheet = OMRSheet(
             exam_id=exam_id,
@@ -1933,18 +1950,17 @@ def upload_omr_sheets():
         )
 
         db.session.add(sheet)
-
         uploaded.append(filename)
-
 
     db.session.commit()
 
-
     return jsonify({
-        "message": "OMR sheets uploaded successfully",
+        "message": f"OMR sheets uploaded successfully to exam_{exam_id}",
         "uploaded_files": uploaded
     }), 200
-
+#===========================================================
+# EVALUATE_OMR
+#===============================================
 @api.route("/faculty/evaluate_omr", methods=["POST"])
 @jwt_required()
 def evaluate_omr():
@@ -1980,7 +1996,10 @@ def evaluate_omr():
         if not keys:
             return jsonify({"error": "Answer key not uploaded"}), 400
 
-        key_path = os.path.join(OMR_UPLOAD_FOLDER, f"key_{exam_id}.txt")
+        exam_folder = os.path.join(OMR_UPLOAD_FOLDER, f"exam_{exam_id}")
+        os.makedirs(exam_folder, exist_ok=True)
+
+        key_path = os.path.join(exam_folder, f"key_{exam_id}.txt")
 
         with open(key_path, "w") as f:
             for k in keys:
@@ -1998,22 +2017,28 @@ def evaluate_omr():
             try:
                 print(f"Processing Sheet: {sheet.sheet_path}")
 
-                # ✅ FIRST: Evaluate OMR
+                # STEP 1: Evaluate OMR sheet
                 result = evaluate_omr_sheet(
                     key_path,
                     sheet.sheet_path
                 )
 
-                # ✅ THEN: Extract roll
-                roll = str(
+                # STEP 2: Extract roll number cleanly
+                raw_roll = str(
                     result.get("roll_number") or
                     os.path.splitext(os.path.basename(sheet.sheet_path))[0]
-                ).upper()
+                ).upper().strip()
 
-                if not roll.startswith("CS"):
-                    roll = "CS" + roll
+                # Fix: avoid double "CS" prefix like CSCS001
+                if raw_roll.startswith("CS"):
+                    roll = raw_roll
+                else:
+                    roll = "CS" + raw_roll
 
-                # ✅ CHECK DUPLICATE
+                print(f"DEBUG raw_roll  : {raw_roll}")
+                print(f"DEBUG final roll: {roll}")
+
+                # STEP 3: Check duplicate
                 existing = OMRResult.query.filter_by(
                     exam_id=exam_id,
                     student_roll=roll
@@ -2030,7 +2055,6 @@ def evaluate_omr():
                 # ==================================
                 score = correct * exam.marks_per_question
                 total = exam.total_questions * exam.marks_per_question
-
                 percentage = round((score / total) * 100, 2) if total > 0 else 0
 
                 # ==================================
@@ -2050,18 +2074,35 @@ def evaluate_omr():
                     grade = "F"
 
                 # ==================================
-                # STUDENT NAME
+                # STEP 4: Fetch student name from DB
                 # ==================================
-                student_name = roll
+                student_name = "Unknown"
 
                 student = Student.query.filter_by(roll_number=roll).first()
+                print(f"DEBUG student found: {student}")
+
                 if student:
-                    user = User.query.get(student.user_id)
-                    if user:
-                        student_name = user.full_name
+                    user_obj = User.query.get(student.user_id)
+                    print(f"DEBUG user_obj found: {user_obj}")
+                    if user_obj:
+                        student_name = user_obj.full_name
+                        print(f"DEBUG student name: {student_name}")
+                else:
+                    # Try without CS prefix as fallback
+                    fallback_roll = raw_roll.replace("CS", "").strip()
+                    print(f"DEBUG trying fallback roll: {fallback_roll}")
+                    student = Student.query.filter(
+                        Student.roll_number.ilike(f"%{fallback_roll}%")
+                    ).first()
+                    if student:
+                        user_obj = User.query.get(student.user_id)
+                        if user_obj:
+                            student_name = user_obj.full_name
+                            roll = student.roll_number  # use exact roll from DB
+                            print(f"DEBUG fallback name found: {student_name}")
 
                 # ==================================
-                # SAVE RESULT
+                # STEP 5: Save result
                 # ==================================
                 result_db = OMRResult(
                     exam_id=exam_id,
@@ -2103,7 +2144,6 @@ def evaluate_omr():
 
         db.session.commit()
 
-        # Cleanup temp key file
         if os.path.exists(key_path):
             os.remove(key_path)
 
@@ -2117,10 +2157,8 @@ def evaluate_omr():
     except Exception as e:
         db.session.rollback()
         print("CRITICAL ERROR:", str(e))
-
         import traceback
         traceback.print_exc()
-
         return jsonify({"error": str(e)}), 500
 
 
@@ -2560,6 +2598,7 @@ def evaluate_omr_combined():
                 existing_res.score = score
                 existing_res.percentage = round(percentage, 2)
                 existing_res.grade = grade
+                existing_res.full_name = student_name
 
             else:
 
@@ -2632,13 +2671,24 @@ def get_omr_results(exam_id):
     fail_count = len(results) - pass_count
     avg_score = sum(r.percentage for r in results) / len(results)
 
-    results_data = [{
-        "studentRoll": r.student_roll,
-        "fullName": r.full_name,
-        "score": float(r.score),
-        "percentage": float(r.percentage),
-        "grade": r.grade
-    } for r in results]
+    results_data = []
+    for r in results:
+        # Fallback for full name if null in OMRResult table
+        student_name = r.full_name
+        if not student_name:
+            student = Student.query.filter_by(roll_number=r.student_roll).first()
+            if student:
+                user = User.query.get(student.user_id)
+                if user:
+                    student_name = user.full_name
+        
+        results_data.append({
+            "studentRoll": r.student_roll,
+            "fullName": student_name or r.student_roll,
+            "score": float(r.score),
+            "percentage": float(r.percentage),
+            "grade": r.grade
+        })
 
     return jsonify({
         "totalStudents": len(results),
